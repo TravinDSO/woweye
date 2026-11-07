@@ -15,7 +15,7 @@ You talk to the agent the way you normally would, in Claude Code, Claude Desktop
   - A **WoW Eye list** under the quest tracker.
   - A **compass bar** across the top of the screen with every target on it.
   - **Routes** that advance on their own as you arrive or finish quests.
-- **Shows the agent's notes** in an in-game panel.
+- **Shows the agent's notes** in an in-game panel you open with `/eye`.
 - **Tracks your sessions:** XP per hour, deaths, time per zone and combat share, so the agent can spot what's slowing you down.
 
 <!-- More feature images: uncomment as each file is added.
@@ -165,6 +165,16 @@ Open the game's Keybindings menu and look under **AddOns** for **WoW Eye**:
 | **Route: previous step** | `/eye prev` |
 
 **WoW Eye Sync (reloadUI)** is the one worth binding first. Press it whenever you want the agent to see where you are now, or to pick up markers and messages it just sent.
+
+### The panel
+
+The panel is where the agent leaves notes for you: a quest plan, what to buy, or a reminder for later. Open it with `/eye` or the **Open or close panel** keybinding.
+
+- **Messages:** the agent sends them with `wow_send_to_panel` (or `wow-eye send` from the CLI). They arrive on your next sync, newest first. When there are new ones, chat says "new messages from your agent" after you log in or reload.
+- **Route:** if the agent has set a route, the top of the panel lists every step and marks how far you've got.
+- **Controls:** drag the panel to move it, and press Escape to close it. The **Sync (reload UI)** button at the bottom does the same as `/eye sync`.
+
+Until the agent sends something, the panel says "No messages yet". Ask your agent to "send the plan to my WoW Eye panel" to see one.
 
 ### Map markers and the beacon
 
