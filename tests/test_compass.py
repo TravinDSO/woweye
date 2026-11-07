@@ -284,12 +284,13 @@ def test_a_removed_quest_drops_its_choice(env):  # noqa: F811
     assert g.ns.isOnCompass("q:109") is False
 
 
-def test_hidden_in_combat_without_facing_with_secret_facing_or_switched_off(env):  # noqa: F811
+def test_stays_in_combat_but_hides_without_facing_with_secret_facing_or_switched_off(env):  # noqa: F811
     g = world_game([BOW_SHOP])
     assert tick(g).IsShown()
 
     g.g.in_combat = True
-    assert not tick(g).IsShown()
+    assert tick(g).IsShown()
+    assert [s.entry.label for s in slots(g)] == ["Bow merchant"]
     g.g.in_combat = False
 
     g.g.facing = None
@@ -365,3 +366,156 @@ def test_right_click_in_edit_mode_resets_the_position():
     g.g.edit_callbacks["EditMode.Enter"]()
     bar.scripts.OnMouseUp(bar, "RightButton")
     assert g.g.WowEyeDB.compassPosition is None
+
+
+
+
+def party_slots(g):
+    found = g.ns.compassPartySlots
+    return [found[i] for i in range(1, len(found) + 1) if found[i].IsShown()]
+
+
+FAKE_PARTY = r'''
+party = {
+    party1 = { map = 37, x = 0.25, y = 0.30, name = "Friend", class = "MAGE" },
+}
+RAID_CLASS_COLORS = { MAGE = { r = 0.25, g = 0.78, b = 0.92 } }
+C_Map.GetBestMapForUnit = function(unit)
+    local p = party[unit]
+    if p then return p.map end
+    return player_map
+end
+C_Map.GetPlayerMapPosition = function(mapID, unit)
+    local p = party[unit]
+    if p then
+        if p.map == mapID then return { GetXY = function() return p.x, p.y end } end
+        return nil
+    end
+    if mapID == player_map then return { GetXY = function() return player_x, player_y end } end
+end
+function UnitExists(unit) return party[unit] ~= nil end
+function UnitIsConnected(unit) return not party[unit].offline end
+local realUnitName = UnitName
+function UnitName(unit)
+    if party[unit] then return party[unit].name end
+    return realUnitName(unit)
+end
+local realUnitClass = UnitClass
+function UnitClass(unit)
+    if party[unit] then return "Class", party[unit].class end
+    return realUnitClass(unit)
+end
+'''
+
+
+def party_game(markers=None) -> Game:
+    if markers:
+        bridge.set_markers(markers)
+        g = Game(inbox_source=bridge.inbox_path().read_text(encoding="utf-8"))
+    else:
+        g = Game()
+    g.lua.execute(FAKE_WORLD)
+    g.lua.execute(FAKE_PARTY)
+    g.login()
+    return g
+
+
+def test_party_members_show_on_the_compass():
+    g = party_game()
+    tick(g)
+    [slot] = party_slots(g)
+    assert slot.entry.kind == "party"
+    assert slot.label.text == "Friend  200 yds"  # 200 yards due north
+    assert slot.x == pytest.approx(BAR_CENTER)
+    assert list(slot.entry.color.values()) == pytest.approx([0.25, 0.78, 0.92])
+
+
+def test_party_members_who_cant_be_placed_are_left_off():
+    g = party_game()
+    g.lua.execute("party.party2 = { map = 48, x = 0.5, y = 0.5, name = 'Far', class = 'MAGE' }")
+    g.lua.execute("party.party3 = { map = 37, x = 0.3, y = 0.3, name = 'Gone', class = 'MAGE', offline = true }")
+    g.lua.execute("party.party4 = { map = nil, x = 0.3, y = 0.3, name = 'Inside', class = 'MAGE' }")
+    tick(g)
+    assert [s.entry.label for s in party_slots(g)] == ["Friend"]
+
+
+def test_party_toggle_by_command_and_keybinding():
+    g = party_game()
+    g.g.SlashCmdList["WOWEYE"]("party")
+    assert g.g.WowEyeDB.compassParty is False
+    tick(g)
+    assert party_slots(g) == []
+    assert tick(g).IsShown()  # the compass itself stays
+    g.g.WowEye_ToggleParty()
+    tick(g)
+    assert [s.entry.label for s in party_slots(g)] == ["Friend"]
+
+
+def test_party_members_get_their_own_lane_above_the_targets(env):  # noqa: F811
+    g = party_game([{**BOW_SHOP, "x": 25.0, "y": 30.2, "label": "Camp"}])
+    tick(g)
+    assert [s.entry.label for s in slots(g)] == ["Camp"]
+    assert [s.entry.label for s in party_slots(g)] == ["Friend"]
+    assert g.ns.compassPartyLane.IsShown()
+
+
+def test_the_party_lane_hides_with_nobody_to_show():
+    g = party_game()
+    g.lua.execute("party = {}")
+    tick(g)
+    assert not g.ns.compassPartyLane.IsShown()
+    assert g.ns.compass.IsShown()
+
+
+def test_party_labels_that_would_overlap_are_left_off():
+    g = party_game()
+    # About 40 pixels left of Friend on the bar: separate pins, but the labels collide.
+    g.lua.execute("party.party2 = { map = 37, x = 0.209, y = 0.30, name = 'Close', class = 'MAGE' }")
+    tick(g)
+    assert len(party_slots(g)) == 2
+    shown = {s.entry.label: s.labelShown for s in party_slots(g)}
+    assert True in shown.values() and False in shown.values()
+
+
+def test_hovering_a_party_member_has_no_click_hint_and_clicking_does_nothing():
+    g = party_game()
+    g.g.last_waypoint = None
+    tick(g)
+    slot = party_slots(g)[0]
+    slot.scripts.OnEnter(slot)
+    lines = list(g.g.tooltip_lines.values())
+    assert lines[0] == "Friend"
+    assert not any("Click to track" in str(line) for line in lines)
+    slot.scripts.OnClick(slot)
+    assert g.g.last_waypoint is None
+
+
+def test_party_names_are_shown_literally_and_secret_names_fall_back():
+    g = party_game()
+    g.lua.execute("party.party1.name = '|cffff0000Red|r'")
+    tick(g)
+    assert party_slots(g)[0].label.text.startswith("||cffff0000Red||r")
+    g.lua.execute("party.party1.name = SECRET")
+    tick(g)
+    assert party_slots(g)[0].label.text.startswith("party1")
+
+
+def test_party_pins_have_red_borders_and_the_leader_adds_gold():
+    g = party_game()
+    g.lua.execute("""
+        party.party2 = { map = 37, x = 0.45, y = 0.30, name = 'Boss', class = 'MAGE', leader = true }
+        function UnitIsGroupLeader(unit) return party[unit] and party[unit].leader == true end
+    """)
+    tick(g)
+    borders = {s.entry.label: (s.hasPartyBorder, s.hasPartyLeader) for s in party_slots(g)}
+    assert borders == {"Friend": (True, False), "Boss": (True, True)}
+    boss = next(s for s in party_slots(g) if s.entry.label == "Boss")
+    boss.scripts.OnEnter(boss)
+    assert list(g.g.tooltip_lines.values())[0] == "Boss (party leader)"
+
+
+def test_a_secret_leader_flag_means_no_border():
+    g = party_game()
+    g.lua.execute("function UnitIsGroupLeader() return SECRET end")
+    tick(g)
+    assert party_slots(g)[0].hasPartyLeader is False

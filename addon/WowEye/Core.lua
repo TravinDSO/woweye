@@ -219,6 +219,8 @@ function WowEye_RouteNext() ns.routeNext() end
 function WowEye_RoutePrevious() ns.routePrevious() end
 BINDING_NAME_WOWEYE_BEACON = "WoW Eye Beacon (toggle)"
 function WowEye_ToggleBeacon() ns.toggleBeacon() end
+BINDING_NAME_WOWEYE_PARTY = "WoW Eye Party Markers (toggle)"
+function WowEye_ToggleParty() ns.toggleCompassParty() end
 
 SLASH_WOWEYE1 = "/eye"
 SLASH_WOWEYE2 = "/woweye"
@@ -246,6 +248,8 @@ SlashCmdList["WOWEYE"] = function(msg)
         ns.toggleMarkerList()
     elseif cmd == "compass" then
         ns.toggleCompassBar()
+    elseif cmd == "party" then
+        ns.toggleCompassParty()
     else
         ns.togglePanel()
     end

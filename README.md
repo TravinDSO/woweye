@@ -151,6 +151,7 @@ The character-data tools take an optional `character` (`Name-Realm`) and default
 | `/eye route` | Show the current route step in chat |
 | `/eye list` | Show or hide the WoW Eye list under the quest tracker |
 | `/eye compass` | Show or hide the compass bar |
+| `/eye party` | Show or hide party members on the compass |
 
 ### Keybindings
 
@@ -160,6 +161,7 @@ Open the game's Keybindings menu and look under **AddOns** for **WoW Eye**:
 | --- | --- |
 | **WoW Eye Sync (reloadUI)** | `/eye sync` |
 | **WoW Eye Beacon (toggle)** | `/eye beacon` |
+| **WoW Eye Party Markers (toggle)** | `/eye party` |
 | **Open or close panel** | `/eye` |
 | **Route: next step** | `/eye next` |
 | **Route: previous step** | `/eye prev` |
@@ -198,13 +200,14 @@ A **compass bar** at the top of the screen turns with your character. Headings a
 - **Targets:** each one is a pin on the bar, with its name and distance below it. WoW Eye entries are blue, quests are gold, and anything within 15 yards is green.
 - **Behind you:** a target behind you sits at the end of the bar on the side to turn to, marked `<` or `>`.
 - **Shared pins:** targets at nearly the same spot share a pin, labeled like `Surena Caledon  686 yds  +2`.
-- **Mouse:** hover a pin or label to see everything there, and click to track it.
+- **Party members:** they get their own thin lane on top of the bar, so they never crowd the quest and WoW Eye pins. Each member is a pin in their class color with a red border, and the party leader's has a gold ring around the red. Their name and distance sit beside the pin. Members in an instance, offline or on another continent don't show, and the lane hides when there's nobody to show. Turn them off or on with `/eye party` or the **WoW Eye Party Markers (toggle)** keybinding.
+- **Mouse:** hover a pin or label to see everything there, and click a target to track it.
 - **What's on it:** every WoW Eye entry and every quest in your tracker, by default. To hide one, or to add a quest you aren't tracking, right-click it in the quest tracker or the map's quest log and use **Show on WoW Eye compass**.
 - **Moving it:** open Edit Mode and drag the bar. Right-click it there to put it back at the top.
 
 ![Hovering a compass pin shows the target, its location, distance and note](docs/images/compass-tooltip.png)
 
-The compass goes by the way your character faces, not the camera. The game doesn't give addons your facing inside dungeons and other instances, so the bar hides there. It also hides in combat.
+The compass goes by the way your character faces, not the camera. The game doesn't give addons your facing inside dungeons and other instances, so the bar hides there. It stays up in combat in the open world, so you can keep track of your party and targets mid-fight.
 
 ### Routes
 
@@ -245,7 +248,7 @@ WoW Eye is built to stay within what Blizzard allows addons to do:
 
 - **It only reads.** There's no input automation, memory reading, injected code or modified game files. The agent can't act in the game. It can only show you information.
 - **No hidden data.** Values the game marks secret are dropped and counted, never reconstructed, and no snapshot is taken during combat.
-- **Navigation only.** The beacon, compass and routes hide in combat and are meant for questing and travel, not for encounter mechanics.
+- **Navigation only.** The beacon and routes hide in combat. The compass stays up in open-world combat but only shows directions and distances, like the minimap, and it hides in instances. All of it is meant for questing and travel, not for encounter mechanics.
 - **Agent text is shown as plain text.** Messages and labels from the agent can't run code or use the game's text formatting codes.
 
 As with any addon, you're responsible for using it within the game's terms.

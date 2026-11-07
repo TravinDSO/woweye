@@ -385,7 +385,9 @@ end
 -- Quests become the game's tracked target, so the beacon and Blizzard's own arrow
 -- follow them; markers and route steps become the waypoint.
 local function activateEntry(e)
-    if e.kind == "quest" then
+    if e.kind == "party" then
+        return -- a party member isn't something the game can track
+    elseif e.kind == "quest" then
         ns.try(C_SuperTrack.SetSuperTrackedUserWaypoint, false)
         C_SuperTrack.SetSuperTrackedQuestID(e.questID)
     else
@@ -830,7 +832,8 @@ local COMPASS_MAX = 12
 local CLOSE_YARDS = 15
 local BAR_WIDTH = 640
 local BAR_HEIGHT = 26
-local BAR_TOP = -4
+local PARTY_LANE_HEIGHT = 16
+local BAR_TOP = -4 - PARTY_LANE_HEIGHT -- leaves room for the party lane above the bar
 local BAR_PADDING = 12
 local HALF_SPAN = math.pi / 2 -- the bar shows 90 degrees either side of straight ahead
 local LABEL_ROW_HEIGHT = 13
@@ -840,6 +843,8 @@ local LABEL_NAME_MAX = 24 -- bytes of a name shown on the bar; the tooltip has i
 local GROUP_PIXELS = 18 -- pins closer than this share one label
 local PIN_HIT_WIDTH = 20
 local QUEST_GOLD = { 1, 0.82, 0 }
+local PARTY_BLUE = { 0.67, 0.67, 1 } -- the game's party chat color, used when a class has none
+local PARTY_UNITS = { "party1", "party2", "party3", "party4" }
 local CLOSE_GREEN = { 0.3, 1, 0.3 }
 
 -- Bearings are radians counter-clockwise from north, the way the game measures facing.
@@ -852,6 +857,8 @@ local TICK_STEP = math.pi / 12 -- every 15 degrees
 local compass
 local headingMarks, tickMarks = {}, {}
 local compassSlots = {}
+local partyLane
+local partySlots = {}
 
 local function wrapAngle(a)
     while a > math.pi do
@@ -1011,9 +1018,25 @@ local function buildCompass()
         end
     end
 
+    -- The party lane: a thin strip on top of the bar, so party members never share space
+    -- with quest and WoW Eye pins. It only shows while there's someone to put on it.
+    partyLane = CreateFrame("Frame", nil, compass)
+    partyLane:SetSize(BAR_WIDTH, PARTY_LANE_HEIGHT)
+    partyLane:SetPoint("BOTTOM", compass, "TOP", 0, 0)
+    partyLane:EnableMouse(false)
+    local laneBackground = solid(partyLane, "BACKGROUND", 0, 0, 0, 0.45)
+    laneBackground:SetAllPoints()
+    local laneEdge = solid(partyLane, "BORDER", 0.85, 0.1, 0.1, 0.35)
+    laneEdge:SetHeight(1)
+    laneEdge:SetPoint("TOPLEFT")
+    laneEdge:SetPoint("TOPRIGHT")
+    partyLane:Hide()
+
     ns.compass = compass
     ns.compassSlots = compassSlots
     ns.compassHeadings = headingMarks
+    ns.compassPartyLane = partyLane
+    ns.compassPartySlots = partySlots
 end
 
 local function layoutScale(facing)
@@ -1098,6 +1121,9 @@ function ns.compassReading(e, continent, px, py, facing)
 end
 
 local function colorFor(e, yards)
+    if e.kind == "party" then
+        return e.color or PARTY_BLUE
+    end
     if yards <= CLOSE_YARDS then
         return CLOSE_GREEN
     end
@@ -1140,17 +1166,20 @@ local function showGroupTooltip(slot, owner)
     for i, item in ipairs(group.items) do
         local e = item.entry
         local c = colorFor(e, item.yards)
+        local name = e.isLeader and (e.label .. " (party leader)") or e.label
         if count > 1 or i > 1 then
-            GameTooltip:AddLine(e.label, c[1], c[2], c[3])
+            GameTooltip:AddLine(name, c[1], c[2], c[3])
         else
-            GameTooltip:SetText(e.label, c[1], c[2], c[3])
+            GameTooltip:SetText(name, c[1], c[2], c[3])
         end
         GameTooltip:AddLine(string.format("%s - %d yds", e.where, math.floor(item.yards)), 0.8, 0.8, 0.8)
         if e.marker and e.marker.note then
             GameTooltip:AddLine(ns.literal(e.marker.note), 1, 1, 1, true)
         end
     end
-    GameTooltip:AddLine("Click to track " .. group.leader.label, 0.5, 0.8, 1)
+    if group.leader.kind ~= "party" then
+        GameTooltip:AddLine("Click to track " .. group.leader.label, 0.5, 0.8, 1)
+    end
     GameTooltip:Show()
 end
 
@@ -1199,11 +1228,14 @@ local function groupTargets(placed)
     end)
     local groups, current = {}, nil
     for _, p in ipairs(placed) do
-        if current and current.side == p.side and p.x - current.lastX <= GROUP_PIXELS then
+        -- Party members only group with each other, so they never hide a target's label.
+        local party = p.entry.kind == "party"
+        if current and current.side == p.side and current.party == party
+            and p.x - current.lastX <= GROUP_PIXELS then
             current.items[#current.items + 1] = p
             current.lastX = p.x
         else
-            current = { items = { p }, side = p.side, lastX = p.x }
+            current = { items = { p }, side = p.side, lastX = p.x, party = party }
             groups[#groups + 1] = current
         end
     end
@@ -1286,12 +1318,159 @@ local function paintGroups(groups)
     end
 end
 
+local function diamond(parent, sublevel, size, r, g, b)
+    local t = parent:CreateTexture(nil, "ARTWORK", nil, sublevel)
+    t:SetColorTexture(r, g, b, 1)
+    t:SetSize(size, size)
+    t:SetPoint("CENTER")
+    t:SetRotation(math.pi / 4)
+    return t
+end
+
+-- A party pin: the class color inside a red border, with a gold ring outside the red for
+-- the party leader. Its name and distance sit beside it in the lane.
+local function buildPartySlot(i)
+    local slot = CreateFrame("Button", nil, partyLane)
+    slot:SetSize(PIN_HIT_WIDTH, PARTY_LANE_HEIGHT)
+    slot.leaderBorder = diamond(slot, 0, 13, 1, 0.82, 0)
+    slot.leaderBorder:Hide()
+    slot.partyBorder = diamond(slot, 1, 10, 0.85, 0.1, 0.1)
+    slot.pin = solid(slot, "OVERLAY", 1, 1, 1, 1)
+    slot.pin:SetSize(7, 7)
+    slot.pin:SetPoint("CENTER")
+    slot.pin:SetRotation(math.pi / 4)
+
+    slot.labelHit = CreateFrame("Button", nil, partyLane)
+    slot.labelHit:SetHeight(PARTY_LANE_HEIGHT)
+    slot.label = slot.labelHit:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    slot.label:SetPoint("CENTER")
+    slot.label:SetWordWrap(false)
+
+    hookSlotMouse(slot, slot)
+    hookSlotMouse(slot, slot.labelHit)
+    partySlots[i] = slot
+    return slot
+end
+
+-- Labels go beside their pin (to the left near the right end of the lane) on a single
+-- row. One that would overlap the previous label is left off; its pin and tooltip stay.
+local function paintParty(groups)
+    local lastRight
+    for i, g in ipairs(groups) do
+        local slot = partySlots[i] or buildPartySlot(i)
+        slot.group, slot.entry = g, g.leader
+        slot.x, slot.side, slot.angle, slot.yards, slot.count = g.x, g.side, g.angle, g.yards, #g.items
+        slot.hasPartyBorder = true
+        slot.hasPartyLeader = false
+        for _, item in ipairs(g.items) do
+            if item.entry.isLeader then
+                slot.hasPartyLeader = true
+            end
+        end
+        if slot.hasPartyLeader then
+            slot.leaderBorder:Show()
+        else
+            slot.leaderBorder:Hide()
+        end
+
+        local c = colorFor(g.leader, g.yards)
+        slot.pin:SetVertexColor(c[1], c[2], c[3], 1)
+        slot:ClearAllPoints()
+        slot:SetPoint("CENTER", partyLane, "LEFT", g.x, 0)
+        slot:Show()
+
+        local text = groupText(g)
+        slot.label:SetText(text)
+        slot.label:SetTextColor(c[1], c[2], c[3])
+        local width = textWidth(slot.label, text)
+        local left = g.x + PIN_HIT_WIDTH / 2
+        if left + width > BAR_WIDTH then
+            left = g.x - PIN_HIT_WIDTH / 2 - width
+        end
+        if lastRight and left < lastRight + LABEL_GAP then
+            slot.labelShown = false
+            slot.labelHit:Hide()
+        else
+            slot.labelShown = true
+            lastRight = left + width
+            slot.labelHit:SetWidth(width)
+            slot.labelHit:ClearAllPoints()
+            slot.labelHit:SetPoint("LEFT", partyLane, "LEFT", left, 0)
+            slot.labelHit:Show()
+        end
+    end
+    for i = #groups + 1, #partySlots do
+        partySlots[i].group = nil
+        partySlots[i]:Hide()
+        partySlots[i].labelHit:Hide()
+    end
+    if #groups > 0 then
+        partyLane:Show()
+    else
+        partyLane:Hide()
+    end
+end
+
+local function classColor(classFile)
+    if type(classFile) ~= "string" or ns.isSecret(classFile) then
+        return PARTY_BLUE
+    end
+    local c = RAID_CLASS_COLORS and RAID_CLASS_COLORS[classFile]
+    if c and usable(c.r, c.g, c.b) then
+        return { c.r, c.g, c.b }
+    end
+    return PARTY_BLUE
+end
+
+-- Party members, where the game will place them. GetPlayerMapPosition works for the
+-- player and party members only, and gives nothing inside instances, so members there
+-- (or offline, or on another continent) simply don't show. Positions move, so these are
+-- built fresh every update.
+function ns.partyEntries()
+    local out = {}
+    if WowEyeDB.compassParty == false then
+        return out
+    end
+    for _, unit in ipairs(PARTY_UNITS) do
+        if ns.try(UnitExists, unit) == true and ns.try(UnitIsConnected, unit) ~= false then
+            local mapID = ns.try(C_Map.GetBestMapForUnit, unit)
+            local pos = usable(mapID) and ns.try(C_Map.GetPlayerMapPosition, mapID, unit)
+            if pos then
+                local x, y = pos:GetXY()
+                if usable(x, y) then
+                    local name = ns.try(UnitName, unit)
+                    if type(name) ~= "string" or ns.isSecret(name) then
+                        name = unit
+                    end
+                    local _, classFile = ns.try(UnitClass, unit)
+                    -- Can come back secret; then it's treated as not the leader.
+                    local leader = ns.try(UnitIsGroupLeader, unit)
+                    local target = { mapID = mapID, x = x, y = y }
+                    out[#out + 1] = {
+                        kind = "party",
+                        key = "party:" .. unit,
+                        unit = unit,
+                        target = target,
+                        label = ns.literal(name),
+                        color = classColor(classFile),
+                        isLeader = not ns.isSecret(leader) and leader == true,
+                        where = "Party - " .. zoneName(target),
+                    }
+                end
+            end
+        end
+    end
+    return out
+end
+
 function ns.updateCompass()
     if not compass then
         buildCompass()
     end
     local facing = ns.try(GetPlayerFacing)
-    local hidden = WowEyeDB.compassBar == false or InCombatLockdown() or not usable(facing)
+    -- It stays up in combat, like the minimap: it only shows directions in the open world.
+    -- Instances give no facing, so it hides there on its own.
+    local hidden = WowEyeDB.compassBar == false or not usable(facing)
     -- In Edit Mode the bar stays up, so it can be placed even where it would hide.
     if hidden and not ns.compassEditing then
         compass:Hide()
@@ -1299,12 +1478,13 @@ function ns.updateCompass()
     end
     if not usable(facing) then
         paintGroups({})
+        paintParty({})
         compass:Show()
         return
     end
     layoutScale(facing)
 
-    local placed = {}
+    local placed, party = {}, {}
     local continent, px, py = playerWorldPosition()
     if continent then
         for _, e in ipairs(ns.compassEntries or {}) do
@@ -1319,9 +1499,23 @@ function ns.updateCompass()
                 end
             end
         end
+        for _, e in ipairs(ns.partyEntries()) do
+            local angle, yards = ns.compassReading(e, continent, px, py, facing)
+            if angle then
+                local x, side = ns.compassBarX(angle)
+                party[#party + 1] = { entry = e, angle = angle, yards = yards, x = x, side = side }
+            end
+        end
     end
     paintGroups(groupTargets(placed))
+    paintParty(groupTargets(party))
     compass:Show()
+end
+
+function ns.toggleCompassParty()
+    WowEyeDB.compassParty = WowEyeDB.compassParty == false
+    print("|cff66ccffWoW Eye:|r party on the compass " .. (WowEyeDB.compassParty and "on." or "off."))
+    pcall(ns.updateCompass)
 end
 
 function ns.toggleCompassBar()
