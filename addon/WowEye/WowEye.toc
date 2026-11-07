@@ -1,0 +1,15 @@
+## Interface: 16001
+## Title: WoW Eye
+## Notes: AI companion panel and data bridge for an external agent.
+## Author: Travin
+## Version: 0.1.0
+## SavedVariables: WowEyeDB
+
+Inbox.lua
+Core.lua
+Snapshot.lua
+Panel.lua
+Pins.lua
+Pins.xml
+Route.lua
+Tracking.lua

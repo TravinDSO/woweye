@@ -1,0 +1,16 @@
+<Ui xmlns="http://www.blizzard.com/wow/ui/">
+    <Frame name="WowEyePinTemplate" hidden="true" mixin="WowEyePinMixin" virtual="true">
+        <Size x="20" y="20"/>
+        <Layers>
+            <Layer level="OVERLAY">
+                <Texture parentKey="Icon" file="Interface\TargetingFrame\UI-RaidTargetingIcon_1" setAllPoints="true"/>
+            </Layer>
+        </Layers>
+        <Scripts>
+            <OnLoad method="OnLoad"/>
+            <OnEnter method="OnMouseEnter"/>
+            <OnLeave method="OnMouseLeave"/>
+            <OnMouseUp method="OnMouseUp"/>
+        </Scripts>
+    </Frame>
+</Ui>

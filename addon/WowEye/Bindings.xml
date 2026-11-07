@@ -1,0 +1,17 @@
+<Bindings>
+    <Binding name="WOWEYE_SYNC">
+        WowEye_Sync()
+    </Binding>
+    <Binding name="WOWEYE_BEACON">
+        WowEye_ToggleBeacon()
+    </Binding>
+    <Binding name="WOWEYE_PANEL">
+        WowEye_TogglePanel()
+    </Binding>
+    <Binding name="WOWEYE_ROUTE_NEXT">
+        WowEye_RouteNext()
+    </Binding>
+    <Binding name="WOWEYE_ROUTE_PREVIOUS">
+        WowEye_RoutePrevious()
+    </Binding>
+</Bindings>

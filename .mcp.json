@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "wow-eye": {
+      "command": "uv",
+      "args": ["run", "--quiet", "wow-eye-mcp"]
+    }
+  }
+}

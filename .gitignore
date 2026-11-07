@@ -1,0 +1,25 @@
+# Python and tooling
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+dist/
+build/
+*.egg-info/
+
+# Written at runtime by the bridge; `wow-eye install` creates it.
+addon/WowEye/Inbox.lua
+addon/WowEye/Inbox.tmp
+
+# Personal play notes, character handoffs and machine-specific agent notes.
+personal_data/
+CLAUDE.local.md
+wow-eye.local.toml
+.claude/settings.local.json
+
+# Local secrets and OS clutter
+.env
+*.stackdump
+Thumbs.db
+desktop.ini
+.DS_Store
