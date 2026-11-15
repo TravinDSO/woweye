@@ -35,6 +35,13 @@ function WowEyePinMixin:OnLoad()
     self:SetScalingLimits(1, 1.0, 1.2)
 end
 
+-- Pins.xml gives the template OnEnter/OnLeave scripts, which is what enables mouse
+-- motion on the frame. MapCanvas asserts that a new pin has no such scripts unless
+-- this returns true, then routes them to OnMouseEnter/OnMouseLeave itself.
+function WowEyePinMixin:DisableInheritedMotionScriptsWarning()
+    return true
+end
+
 function WowEyePinMixin:OnAcquired(marker)
     self.marker = marker
     self:SetPosition(marker.x, marker.y)

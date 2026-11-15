@@ -264,6 +264,7 @@ MapCanvasPinMixin = {
     UseFrameLevelType = noop,
     SetScalingLimits = noop,
     SetPosition = function(self, x, y) self.x, self.y = x, y end,
+    DisableInheritedMotionScriptsWarning = function() return false end,
 }
 MapCanvasDataProviderMixin = {
     GetMap = function(self) return self.owningMap end,

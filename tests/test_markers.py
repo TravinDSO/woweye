@@ -145,3 +145,15 @@ def test_toc_and_pin_template_are_consistent():
     assert files.index("Pins.lua") < files.index("Pins.xml")
     ET.parse(ADDON_DIR / "Pins.xml")
     assert 'mixin="WowEyePinMixin"' in (ADDON_DIR / "Pins.xml").read_text()
+
+
+def test_pin_template_motion_scripts_pass_the_map_canvas_check(game):
+    # MapCanvasMixin:AcquirePin asserts a new pin has no OnEnter/OnLeave script unless
+    # its mixin opts out with DisableInheritedMotionScriptsWarning. Opening the map
+    # with a marker hit that assertion in the real client.
+    ns_ = "{http://www.blizzard.com/wow/ui/}"
+    scripts = ET.parse(ADDON_DIR / "Pins.xml").getroot().find(f"{ns_}Frame/{ns_}Scripts")
+    tags = {child.tag.removeprefix(ns_) for child in scripts}
+    if tags & {"OnEnter", "OnLeave"}:
+        mixin = game.g.WowEyePinMixin
+        assert mixin.DisableInheritedMotionScriptsWarning(mixin) is True
