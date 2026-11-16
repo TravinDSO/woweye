@@ -179,3 +179,42 @@ def test_slash_beacon_updates_the_header_button(env):  # noqa: F811
     g = game_with_inbox()
     g.g.SlashCmdList["WOWEYE"]("beacon")
     assert g.ns.markerList.header.beacon.on is False
+
+
+def hide_from_compass(g, row):
+    row.compass.scripts.OnClick(row.compass)
+
+
+def test_compass_only_toggle_hides_entries_hidden_from_the_compass(env):  # noqa: F811
+    bridge.set_markers([BOW_SHOP, ELSEWHERE])
+    g = game_with_inbox()
+    button = g.ns.markerList.header.compassOnly
+    assert button.on is False
+    hide_from_compass(g, shown_rows(g)[1])
+    assert labels(g) == ["Bow merchant", "Other"]
+
+    button.scripts.OnClick(button)
+    assert g.g.WowEyeDB.listCompassOnly is True
+    assert button.on is True
+    assert labels(g) == ["Bow merchant"]
+    assert g.ns.markerList.header.text.text == "WoW Eye (1 hidden)"
+    # Only the list is filtered: the pins stay.
+    assert len(g.g.WorldMapFrame.pins) == 1  # map 37 shows only Bow merchant
+
+    button.scripts.OnClick(button)
+    assert g.g.WowEyeDB.listCompassOnly is False
+    assert labels(g) == ["Bow merchant", "Other"]
+    assert g.ns.markerList.header.text.text == "WoW Eye"
+
+
+def test_compass_only_keeps_the_header_when_everything_is_hidden(env):  # noqa: F811
+    bridge.set_markers([BOW_SHOP])
+    g = game_with_inbox()
+    hide_from_compass(g, shown_rows(g)[0])
+    button = g.ns.markerList.header.compassOnly
+    button.scripts.OnClick(button)
+    assert g.ns.markerList.IsShown()
+    assert labels(g) == []
+    header = g.ns.markerList.header
+    header.scripts.OnClick(header)
+    assert header.text.text == "WoW Eye (0)"

@@ -192,6 +192,7 @@ Route steps and markers are listed in a **WoW Eye** section below the quest trac
 - Click an entry to make it your waypoint, and hover for its note.
 - Click the header to collapse the section. The star button in the header turns the beacon on or off.
 - The button on the right of each entry shows or hides that entry on the compass.
+- The compass button next to the star hides entries you've hidden from the compass, so the list only shows what you're following. Click it again to bring them back. The header counts how many are hidden.
 - The section's background follows the tracker's Opacity setting in Edit Mode.
 
 ### Compass

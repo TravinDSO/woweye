@@ -706,6 +706,49 @@ local function buildBeaconButton(header)
     return button
 end
 
+-- The compass-only toggle beside the beacon: when on, the list leaves out entries the
+-- player has hidden from the compass. It only filters the list; pins, the waypoint and
+-- the route don't change.
+local function compassOnly()
+    return WowEyeDB.listCompassOnly == true
+end
+
+function ns.toggleCompassOnly()
+    WowEyeDB.listCompassOnly = not compassOnly()
+    ns.refreshMarkerList()
+end
+
+local function paintCompassOnlyButton(button)
+    paintCompassButton(button, compassOnly())
+end
+
+local function showCompassOnlyTooltip(button)
+    local on = compassOnly()
+    GameTooltip:SetOwner(button, "ANCHOR_LEFT")
+    GameTooltip:SetText("Compass entries only: " .. (on and "on" or "off"))
+    GameTooltip:AddLine("Hides list entries you've hidden from the compass.", 1, 1, 1, true)
+    GameTooltip:AddLine("Click to " .. (on and "show every entry." or "hide them."), 0.5, 0.8, 1)
+    GameTooltip:Show()
+end
+
+local function buildCompassOnlyButton(header)
+    local button = CreateFrame("Button", nil, header)
+    button:SetSize(16, 16)
+    button:SetPoint("RIGHT", header.beacon, "LEFT", -4, 0)
+    button.icon = button:CreateTexture(nil, "ARTWORK")
+    button.icon:SetAllPoints()
+    button.icon:SetTexture("Interface\\Icons\\Ability_Hunter_Pathfinding")
+    button:SetScript("OnClick", function(self)
+        ns.toggleCompassOnly()
+        showCompassOnlyTooltip(self)
+    end)
+    button:SetScript("OnEnter", showCompassOnlyTooltip)
+    button:SetScript("OnLeave", function()
+        GameTooltip:Hide()
+    end)
+    return button
+end
+
 local function toggleCollapsed()
     WowEyeDB.markerListCollapsed = not WowEyeDB.markerListCollapsed
     ns.refreshMarkerList()
@@ -730,6 +773,7 @@ local function buildList()
     header.toggle = header:CreateTexture(nil, "ARTWORK")
     header.toggle:SetPoint("RIGHT", 1, 0)
     header.beacon = buildBeaconButton(header)
+    header.compassOnly = buildCompassOnlyButton(header)
     header:SetScript("OnClick", toggleCollapsed)
     markerList.header = header
 
@@ -778,12 +822,32 @@ local function updateList()
         markerList:Hide()
         return
     end
+    -- The header stays up even when every entry is filtered out, so the toggle that
+    -- brings them back is still there to click.
+    local shown = entries
+    if compassOnly() then
+        shown = {}
+        for _, e in ipairs(entries) do
+            if ns.isOnCompass(e.key) then
+                shown[#shown + 1] = e
+            end
+        end
+    end
+    local hidden = #entries - #shown
     local collapsed = WowEyeDB.markerListCollapsed == true
     local header = markerList.header
-    header.text:SetText(collapsed and ("WoW Eye (" .. #entries .. ")") or "WoW Eye")
+    if collapsed then
+        header.text:SetText("WoW Eye (" .. #shown .. ")")
+    elseif hidden > 0 then
+        header.text:SetText("WoW Eye (" .. hidden .. " hidden)")
+    else
+        header.text:SetText("WoW Eye")
+    end
     setAtlas(header.toggle, collapsed and "ui-questtrackerbutton-secondary-expand"
         or "ui-questtrackerbutton-secondary-collapse")
     paintBeaconButton(header.beacon)
+    paintCompassOnlyButton(header.compassOnly)
+    entries = shown
 
     for i, e in ipairs(entries) do
         local row = listRows[i] or buildRow(i)
